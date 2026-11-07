@@ -1,0 +1,5 @@
+# Classic question headings
+
+User requests classic grill-me question formatting with red question numbers. Narrow renderer-only patch: format question headers as ❓ Qn — prompt using semantic error/red for the question-mark emoji and bold numeric part, with the letter Q white/default (user clarification), leaving body neutral and selected options/notes in accent. Preserve existing leading Qn (including classic ❓ **Qn** - form) without duplicating it; otherwise number from question order. Do not modify prompts, IDs, recommendation data or persisted answers. No schema/behavior refactor.
+
+Use existing inline fallback (monitor wrapper refused both background and foreground helpers; no hidden helper). Add focused regression for generated/existing number labels, red vs cyan separation and width safety; run complete suite/typecheck and native screenshot proof, commit/push private originmain. Normal install points at canonical checkout, requires reload. Keep developer dependencies/test processes cleaned after proof. Do not edit global standing instructions.

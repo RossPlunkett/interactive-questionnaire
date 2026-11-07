@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripVTControlCharacters } from "node:util";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth, type Component, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { QuestionnaireCard, QuestionnaireState, demoQuestionnaire } from "../index.ts";
@@ -21,6 +22,25 @@ test("QuestionnaireCard mouse selects, adds detail via fallback and submits once
   const final = state.snapshot(); assert.deepEqual(final.answers[0].selected, ["full"]);
   assert.equal(click(card, "Small native prototype"), undefined);
   assert.equal(state.snapshot(), final); assert.ok(renders > 0);
+});
+test("QuestionnaireCard uses classic red numbered headings without duplicating existing labels", () => {
+  for (const prompt of ["Q7 — First question?", "❓ Q7 - First question?", "❓ **Q7** - First question?"]) {
+    const input = structuredClone(demoQuestionnaire);
+    input.questions[0].prompt = prompt; input.questions[1].prompt = "Second question?";
+    const state = new QuestionnaireState("heading", input);
+    const colored = { fg: (color: string, text: string) => `\x1b[${color === "error" ? 31 : color === "accent" ? 36 : 37}m${text}\x1b[0m` } as Theme;
+    const card = new QuestionnaireCard(state, colored, { refresh() {} });
+    const lines = card.render(120);
+    const first = lines.find(line => line.includes("First question?"))!;
+    assert.ok(stripVTControlCharacters(first).startsWith("❓ Q7 — "));
+    assert.ok(first.includes("\x1b[31m❓\x1b[0m"));
+    assert.ok(first.includes("\x1b[37mQ\x1b[0m\x1b[31m7\x1b[0m"));
+    assert.equal(stripVTControlCharacters(first).match(/Q7/g)?.length, 1);
+    assert.ok(lines.find(line => line.includes("Second question?"))!.includes("\x1b[37mQ\x1b[0m\x1b[31m2\x1b[0m"));
+    assert.ok(lines.find(line => line.includes("Small native prototype"))!.includes("\x1b[36m"));
+    for (const width of [1, 2, 8, 32]) assert.ok(card.render(width).every(line => visibleWidth(line) <= width));
+    assert.equal(state.snapshot().questionnaire.questions[0].prompt, prompt);
+  }
 });
 test("QuestionnaireCard colors only selected option lines with the live theme accent", () => {
   const state = fresh();

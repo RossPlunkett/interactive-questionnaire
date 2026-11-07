@@ -164,8 +164,11 @@ export class QuestionnaireCard implements Component {
     };
     add(this.theme.fg("accent", `${snapshot.questionnaire.title} — ${live ? "answering" : snapshot.status === "pending" ? "inactive history" : snapshot.status}`));
     add(this.theme.fg("dim", `Request: ${snapshot.requestId}`));
-    for (const q of snapshot.questionnaire.questions) {
-      add(this.theme.fg("text", q.prompt));
+    for (const [index, q] of snapshot.questionnaire.questions.entries()) {
+      const prefix = q.prompt.match(/^\s*(?:❓\s*)?(?:\*\*)?Q(\d+)(?:\*\*)?(?:\s*[-—–:]\s*|\s+)/i);
+      const number = prefix?.[1] ?? String(index + 1);
+      const prompt = prefix ? q.prompt.slice(prefix[0].length) : q.prompt;
+      add(`${this.theme.fg("error", "❓")} ${this.theme.fg("text", "Q")}${this.theme.fg("error", this.theme.bold?.(number) ?? number)} — ${this.theme.fg("text", prompt)}`);
       const answer = snapshot.answers.find(a => a.id === q.id);
       const selected = new Set(answer?.selected ?? []);
       for (const o of q.options) control(`${q.multiple ? (selected.has(o.id) ? "[x]" : "[ ]") : (selected.has(o.id) ? "(*)" : "( )")} ${o.label}${q.recommended.includes(o.id) ? " (recommended)" : ""}`, { kind: "option", questionId: q.id, optionId: o.id }, selected.has(o.id));

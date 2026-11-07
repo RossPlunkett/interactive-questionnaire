@@ -37,6 +37,7 @@ Avoid loading two copies of the extension or skill. If you have local `questionn
 
 ## Answering questions
 
+- Questions use classic **❓ Qn — …** headings, with a red question mark and numeric part, and a white/default letter Q. Existing question numbers are preserved; unnumbered prompts are numbered automatically.
 - Click choices in **fullscreen** Pi. Some questions allow several selections.
 - Selected lines use your theme's accent color and return to neutral when deselected. No hardcoded cyan: your theme decides the color.
 - **Other / extra** adds detail alongside choices. It turns accent-colored as you type, with a wrapped live preview. The native typing field remains single-line; Enter saves and Escape discards edits.
