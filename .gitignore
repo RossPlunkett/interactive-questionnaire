@@ -1,0 +1,5 @@
+node_modules/
+extension/artifacts/
+*.log
+.env
+.env.*
