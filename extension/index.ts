@@ -7,13 +7,16 @@ export { QuestionnaireSchema, QuestionnaireState, demoQuestionnaire, validateQue
 export type { Questionnaire, Snapshot, Answer } from "./state.ts";
 
 type FocusTUI = TUI & { getFocusedComponent?: () => Component | null };
-type Action = { kind: "option"; questionId: string; optionId: string } | { kind: "extra"; questionId: string } | { kind: "submit" | "cancel" };
+const roundNotesTarget = Symbol("round-notes");
+type TextTarget = string | typeof roundNotesTarget;
+type Action = { kind: "option"; questionId: string; optionId: string } | { kind: "extra"; questionId: string } | { kind: "notes" | "submit" | "cancel" };
 interface CardOptions {
   refresh: () => void;
   tui?: FocusTUI;
   keyboard?: boolean;
   maxHeight?: () => number;
   editFallback?: (questionId: string) => void;
+  editRoundNotesFallback?: () => void;
   close?: () => void;
 }
 
@@ -23,7 +26,7 @@ export class QuestionnaireCard implements Component {
   private rows = new Map<number, number>();
   private actions: Action[] = [];
   private input = new Input({ prompt: "> " });
-  private editing?: string;
+  private editing?: TextTarget;
   private previousFocus: Component | null = null;
   private ownsFocus = false;
   private _focused = false;
@@ -66,15 +69,22 @@ export class QuestionnaireCard implements Component {
       this.previousFocus = null;
       this.ownsFocus = false;
     }
-    if (id && value !== undefined) this.live?.setExtra(id, value);
+    if (id !== undefined && value !== undefined) {
+      if (id === roundNotesTarget) this.live?.setRoundNotes(value);
+      else this.live?.setExtra(id, value);
+    }
     this.options.refresh();
   }
-  private edit(questionId: string): void {
+  commitDraft(): void {
+    if (this.editing !== undefined) this.endEdit(this.input.getValue());
+  }
+  private edit(questionId: TextTarget): void {
     const state = this.live;
     if (!state) return;
     const tui = this.options.tui;
     if (!this.options.keyboard && typeof tui?.getFocusedComponent !== "function") {
-      this.options.editFallback?.(questionId);
+      if (questionId === roundNotesTarget) this.options.editRoundNotesFallback?.();
+      else this.options.editFallback?.(questionId);
       return;
     }
     if (this.editing) this.endEdit(this.input.getValue());
@@ -83,7 +93,7 @@ export class QuestionnaireCard implements Component {
     this.input = new Input({ prompt: "> " });
     this.input.onSubmit = value => this.endEdit(value);
     this.input.onEscape = () => this.endEdit();
-    this.input.setValue(state.extra.get(questionId) ?? "");
+    this.input.setValue(questionId === roundNotesTarget ? state.roundNotes : state.extra.get(questionId) ?? "");
     if (!this.options.keyboard && tui) {
       this.previousFocus = tui.getFocusedComponent!();
       this.ownsFocus = true;
@@ -99,8 +109,10 @@ export class QuestionnaireCard implements Component {
     this.cursor = index;
     if (action.kind === "option") state.toggle(action.questionId, action.optionId);
     else if (action.kind === "extra") this.edit(action.questionId);
+    else if (action.kind === "notes") this.edit(roundNotesTarget);
     else {
-      if (this.editing) this.endEdit(this.input.getValue());
+      if (action.kind === "cancel") this.endEdit();
+      else this.commitDraft();
       state.finish(action.kind === "cancel", action.kind === "cancel" ? "User cancelled" : undefined);
     }
     this.options.refresh();
@@ -145,6 +157,11 @@ export class QuestionnaireCard implements Component {
       add(this.theme.fg(highlighted ? "accent" : "text", `${this.options.keyboard && this.cursor === index ? "> " : "  "}${text}`));
       if (live) for (let row = start; row < lines.length; row++) this.rows.set(row, index);
     };
+    const renderEditor = () => {
+      this.inputRow = lines.length;
+      lines.push(...this.input.render(width));
+      add(this.theme.fg("dim", "Enter saves detail; Escape discards changes"));
+    };
     add(this.theme.fg("accent", `${snapshot.questionnaire.title} — ${live ? "answering" : snapshot.status === "pending" ? "inactive history" : snapshot.status}`));
     add(this.theme.fg("dim", `Request: ${snapshot.requestId}`));
     for (const q of snapshot.questionnaire.questions) {
@@ -154,20 +171,26 @@ export class QuestionnaireCard implements Component {
       for (const o of q.options) control(`${q.multiple ? (selected.has(o.id) ? "[x]" : "[ ]") : (selected.has(o.id) ? "(*)" : "( )")} ${o.label}${q.recommended.includes(o.id) ? " (recommended)" : ""}`, { kind: "option", questionId: q.id, optionId: o.id }, selected.has(o.id));
       const extraText = this.editing === q.id && live ? this.input.getValue() : answer?.extra ?? "";
       control(`Other / extra (additive): ${extraText || "[Add detail]"}`, { kind: "extra", questionId: q.id }, !!extraText.trim());
-      if (this.editing === q.id && live) {
-        this.inputRow = lines.length;
-        lines.push(...this.input.render(width));
-        add(this.theme.fg("dim", "Enter saves detail; Escape discards changes"));
-      }
+      if (this.editing === q.id && live) renderEditor();
       if (answer?.usedRecommendation) add(this.theme.fg("dim", "Empty selection used explicit recommendation."));
       add("");
     }
+    add(this.theme.fg("text", "Round thoughts"));
+    add(this.theme.fg("dim", "Optional context for the whole round, alongside your answers."));
+    const notes = this.editing === roundNotesTarget && live ? this.input.getValue() : snapshot.roundNotes ?? "";
+    control(`Notes: ${notes || (live ? "[Add general thoughts]" : "None")}`, { kind: "notes" }, !!notes.trim());
+    if (this.editing === roundNotesTarget && live) renderEditor();
+    add("");
     if (live) {
       add(this.theme.fg("dim", "Empty selections use the marked recommendations on Submit."));
       control("[ Submit round ]", { kind: "submit" });
+      add(this.theme.fg("dim", "-".repeat(width)));
       control("[ Cancel round ]", { kind: "cancel" });
       add(this.theme.fg("dim", this.options.keyboard ? "↑/↓ or Tab: move · Space/Enter: activate · Escape: return to editor" : "Click controls in fullscreen · /answers for keyboard · explicit OK submits"));
-    } else if (snapshot.reason) add(this.theme.fg("muted", snapshot.reason));
+    } else {
+      if (snapshot.reason) add(this.theme.fg("muted", snapshot.reason));
+      if (snapshot.status === "cancelled") add(this.theme.fg("warning", "Cancelled — every question remains open and unanswered."));
+    }
     const max = this.options.maxHeight?.();
     if (max && lines.length > max) {
       const selectedRow = this.editing ? this.inputRow : [...this.rows].find(([, action]) => action === this.cursor)?.[0] ?? 0;
@@ -195,9 +218,13 @@ export default function questionnaireExtension(pi: ExtensionAPI): void {
     tui = nativeTui as FocusTUI;
     return new Text("Questionnaire: /answers keyboard sheet · explicit OK submits this round", 0, 0);
   }, { placement: "belowEditor" });
-  const editFallback = async (state: QuestionnaireState, ctx: ExtensionContext, id: string) => {
-    const value = await ctx.ui.editor("Other / extra (additive)", state.extra.get(id) ?? "");
-    if (value !== undefined && active?.state === state) state.setExtra(id, value);
+  const editFallback = async (state: QuestionnaireState, ctx: ExtensionContext, id: TextTarget) => {
+    const value = await ctx.ui.editor(id === roundNotesTarget ? "Round thoughts" : "Other / extra (additive)",
+      id === roundNotesTarget ? state.roundNotes : state.extra.get(id) ?? "");
+    if (value !== undefined && active?.state === state) {
+      if (id === roundNotesTarget) state.setRoundNotes(value);
+      else state.setExtra(id, value);
+    }
     refresh();
   };
   const begin = (requestId: string, params: Questionnaire, ctx: ExtensionContext) => {
@@ -231,6 +258,7 @@ export default function questionnaireExtension(pi: ExtensionAPI): void {
   const card = (source: QuestionnaireState | Snapshot, theme: Theme, ctx?: ExtensionContext) => new QuestionnaireCard(source, theme, {
     tui, refresh,
     editFallback: source instanceof QuestionnaireState && ctx ? id => { void editFallback(source, ctx, id); } : undefined,
+    editRoundNotesFallback: source instanceof QuestionnaireState && ctx ? () => { void editFallback(source, ctx, roundNotesTarget); } : undefined,
   });
   const clearCards = () => {
     for (const component of cards.values()) component.dispose();
@@ -274,7 +302,9 @@ export default function questionnaireExtension(pi: ExtensionAPI): void {
   });
   pi.on("input", event => {
     if (active && event.source === "interactive" && !event.images?.length && /^ok$/i.test(event.text.trim())) {
-      active.state.finish();
+      const state = active.state;
+      for (const component of cards.values()) if (component.source === state) component.commitDraft();
+      state.finish();
       return { action: "handled" };
     }
     return { action: "continue" };
@@ -336,7 +366,7 @@ export default function questionnaireExtension(pi: ExtensionAPI): void {
   });
   pi.registerTool({
     name: "questionnaire", label: "Questionnaire", exposure: "model-only", executionMode: "sequential",
-    description: "Ask one human grilling round. Supply explicit recommended option IDs for every question. Other text is additive. Wait for actual submission; route child interviews through their parent. One round at a time.",
+    description: "Ask one human grilling round. Supply explicit recommended option IDs for every question. Other text is additive; roundNotes contains general user context. Wait for actual submission. A cancelled round leaves every question open and unanswered: accept no selections, recommendations, defaults, or notes. Route child interviews through their parent. One round at a time.",
     parameters: QuestionnaireSchema,
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const { state, result } = begin(toolCallId, params, ctx);

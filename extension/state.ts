@@ -18,6 +18,8 @@ export interface Snapshot {
   questionnaire: Questionnaire;
   status: "pending" | "submitted" | "cancelled";
   answers: Answer[];
+  roundNotes?: string;
+  agentInstruction?: string;
   reason?: string;
 }
 
@@ -57,6 +59,7 @@ export class QuestionnaireState {
   readonly extra = new Map<string, string>();
   readonly listeners = new Set<() => void>();
   status: Snapshot["status"] = "pending";
+  private notes = "";
   private final?: Snapshot;
   constructor(readonly requestId: string, questionnaire: Questionnaire) {
     validateQuestionnaire(questionnaire);
@@ -80,17 +83,26 @@ export class QuestionnaireState {
     this.changed();
     return true;
   }
+  get roundNotes(): string { return this.notes; }
+  setRoundNotes(text: string): boolean {
+    if (this.status !== "pending") return false;
+    this.notes = text;
+    this.changed();
+    return true;
+  }
   snapshot(): Snapshot {
     if (this.final) return this.final;
     return frozenCopy({ requestId: this.requestId, resultId: `${this.requestId}:result`, questionnaire: this.questionnaire,
-      status: this.status, answers: this.questionnaire.questions.map(q => ({ id: q.id,
+      status: this.status, roundNotes: this.notes, answers: this.questionnaire.questions.map(q => ({ id: q.id,
         selected: [...this.selected.get(q.id)!], extra: this.extra.get(q.id) ?? "", usedRecommendation: false })) });
   }
   finish(cancelled = false, reason?: string): Snapshot {
     if (this.final) return this.final;
     this.status = cancelled ? "cancelled" : "submitted";
     const snapshot = this.snapshot();
-    this.final = frozenCopy({ ...snapshot, reason, answers: cancelled ? [] : snapshot.answers.map(a => {
+    this.final = frozenCopy({ ...snapshot, reason, roundNotes: cancelled ? "" : snapshot.roundNotes,
+      agentInstruction: cancelled ? "This round was cancelled. Every question in this round remains open and unanswered. Do not treat selections, recommendations, defaults, or notes as accepted answers." : undefined,
+      answers: cancelled ? [] : snapshot.answers.map(a => {
       const q = this.questionnaire.questions.find(q => q.id === a.id)!;
       return a.selected.length ? a : { ...a, selected: [...q.recommended], usedRecommendation: true };
     }) });

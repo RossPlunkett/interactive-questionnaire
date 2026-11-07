@@ -65,6 +65,30 @@ test("QuestionnaireState cancellation yields no recommendation-as-human-answer a
   assert.equal(state.finish(), final); assert.equal(updates, 1);
 });
 
+test("QuestionnaireState includes independent round notes in one frozen result", () => {
+  const state = fresh();
+  assert.equal(state.snapshot().roundNotes, "");
+  state.setExtra("scope", "Answer detail");
+  assert.equal(state.setRoundNotes("General context 日本語"), true);
+  const result = state.finish();
+  assert.equal(result.roundNotes, "General context 日本語");
+  assert.equal(result.answers[0].extra, "Answer detail");
+  assert.equal(result.agentInstruction, undefined);
+  assert.equal(state.setRoundNotes("late change"), false);
+  assert.equal(state.snapshot(), result); assert.ok(Object.isFrozen(result));
+});
+test("QuestionnaireState cancelled round leaves all questions unanswered, accepting no notes or defaults", () => {
+  const state = fresh();
+  state.setRoundNotes("Do not interpret as acceptance");
+  state.setExtra("scope", "Unsubmitted answer detail");
+  state.toggle("scope", "full");
+  const result = state.finish(true, "User cancelled");
+  assert.deepEqual(result.answers, []); assert.equal(result.roundNotes, "");
+  assert.match(result.agentInstruction!, /Every question.*open and unanswered/);
+  assert.match(result.agentInstruction!, /Do not treat.*recommendations.*defaults.*notes/);
+  assert.equal(state.setRoundNotes("late change"), false);
+});
+
 const invalidCases: [string, (value: typeof demoQuestionnaire) => void][] = [
   ["empty title", v => { v.title = " "; }],
   ["no questions", v => { v.questions = []; }],

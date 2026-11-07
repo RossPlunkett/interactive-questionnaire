@@ -94,6 +94,6 @@ test("fry-me skill is model-invokable and reads grilling directly with questionn
   assert.match(base, /frontier/);
   assert.doesNotMatch(skill, /~\/\.agents|\/home\//);
   assert.doesNotMatch(skill, /Skill tool|grill-me\/SKILL\.md/);
-  for (const requirement of ["questionnaire", "recommended", "multiple", "additive", "cancelled", "confirmation", "interview_request", "structuredReply", "original supervisor request ID"])
+  for (const requirement of ["questionnaire", "recommended", "multiple", "additive", "cancelled", "confirmation", "interview_request", "structuredReply", "original supervisor request ID", "roundNotes", "agentInstruction", "open and unanswered"])
     assert.ok(skill.includes(requirement), `missing ${requirement}`);
 });

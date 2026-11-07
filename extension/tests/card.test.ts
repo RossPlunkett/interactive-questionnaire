@@ -70,6 +70,58 @@ test("QuestionnaireCard offers additive detail for every question regardless of 
   const card = new QuestionnaireCard(new QuestionnaireState("always-extra", input), theme, { refresh() {} });
   assert.equal(card.render(100).filter(line => line.includes("Other / extra")).length, 2);
 });
+test("QuestionnaireCard round thoughts are separate, wrapped, accented, and saved with Submit", () => {
+  const input = structuredClone(demoQuestionnaire); input.questions[0].id = "round-notes";
+  const state = new QuestionnaireState("round-notes", input);
+  state.setExtra("round-notes", "Question-specific detail");
+  const colored = { fg: (color: string, text: string) => `\x1b[${color === "accent" ? 36 : 37}m${text}\x1b[0m` } as Theme;
+  const card = new QuestionnaireCard(state, colored, { keyboard: true, refresh() {} });
+  click(card, "[Add general thoughts]");
+  const note = "General thoughts about the whole round, with 日本語 and enough context to wrap across several narrow lines.";
+  card.handleInput(note);
+  assert.equal(state.roundNotes, "", "a preview is not saved yet");
+  const lines = card.render(32);
+  const heading = lines.findIndex(line => line.includes("Round thoughts"));
+  const start = lines.findIndex(line => line.includes("Notes:"));
+  const editor = lines.findIndex((line, i) => i > start && line.startsWith("> "));
+  assert.ok(start > heading && editor > start + 1);
+  assert.ok(lines.slice(start, editor).every(line => line.includes("\x1b[36m")));
+  assert.ok(lines.every(line => visibleWidth(line) <= 32));
+  click(card, "Submit round");
+  assert.equal(state.snapshot().roundNotes, note);
+  assert.equal(state.snapshot().answers[0].extra, "Question-specific detail");
+  assert.deepEqual(state.snapshot().answers[0].selected, ["small"]);
+  assert.ok(card.render(120).some(line => line.includes("General thoughts about the whole round")));
+  assert.equal(state.setRoundNotes("late"), false);
+});
+test("QuestionnaireCard round thoughts save, clear, discard and use the editor fallback independently", () => {
+  const state = fresh();
+  const card = new QuestionnaireCard(state, theme, { keyboard: true, refresh() {} });
+  click(card, "[Add general thoughts]"); card.handleInput("Saved round note"); card.handleInput("\r");
+  click(card, "Notes: Saved round note"); card.handleInput("\x01"); card.handleInput("\x0b"); card.handleInput("\x1b");
+  assert.equal(state.roundNotes, "Saved round note");
+  click(card, "Notes: Saved round note"); card.handleInput("\x01"); card.handleInput("\x0b"); card.handleInput("\r");
+  assert.equal(state.roundNotes, "");
+  let fallback = 0;
+  const fallbackCard = new QuestionnaireCard(state, theme, { refresh() {}, editRoundNotesFallback: () => { fallback++; } });
+  click(fallbackCard, "[Add general thoughts]"); assert.equal(fallback, 1);
+  const old = structuredClone(state.snapshot()); delete old.roundNotes;
+  const history = new QuestionnaireCard(old, theme, { refresh() {} });
+  assert.ok(history.render(100).some(line => line.includes("Notes: None")));
+});
+test("QuestionnaireCard dashed button separator cannot submit or cancel, and Cancel accepts no draft", () => {
+  const state = fresh(); const card = new QuestionnaireCard(state, theme, { keyboard: true, refresh() {} });
+  click(card, "[Add general thoughts]"); card.handleInput("Do not accept this cancelled draft");
+  const lines = card.render(100);
+  const submit = lines.findIndex(line => line.includes("Submit round"));
+  const cancel = lines.findIndex(line => line.includes("Cancel round"));
+  assert.equal(cancel, submit + 2); assert.match(lines[submit + 1], /^-{100}$/);
+  assert.equal(card.handleMouse({ type: "click", button: "left", x: 3, y: submit + 1 } as TuiMouseEvent), undefined);
+  assert.equal(state.status, "pending");
+  click(card, "Cancel round");
+  assert.deepEqual(state.snapshot().answers, []); assert.equal(state.snapshot().roundNotes, "");
+  assert.match(state.snapshot().agentInstruction!, /Every question.*open and unanswered/);
+});
 test("QuestionnaireCard mouse Submit saves unsaved inline detail before freezing", () => {
   const state = fresh();
   const card = new QuestionnaireCard(state, theme, { keyboard: true, refresh() {} });
@@ -113,8 +165,8 @@ test("QuestionnaireCard keyboard reaches clipped submit and cancel controls", ()
     const state = fresh(); let closed = false;
     const card = new QuestionnaireCard(state, theme, { keyboard: true, refresh() {}, maxHeight: () => 5, close: () => { closed = true; } });
     card.render(40);
-    // Two single options + extra, three multi options + extra, submit, cancel.
-    for (let i = 0; i < (cancel ? 8 : 7); i++) { card.handleInput("\x1b[B"); card.render(40); }
+    // Two single options + extra, three multi options + extra, round notes, submit, cancel.
+    for (let i = 0; i < (cancel ? 9 : 8); i++) { card.handleInput("\x1b[B"); card.render(40); }
     assert.ok(card.render(40).some(line => line.includes(cancel ? "Cancel round" : "Submit round")));
     card.handleInput("\r");
     assert.equal(state.status, cancel ? "cancelled" : "submitted"); assert.equal(closed, true);

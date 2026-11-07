@@ -31,16 +31,18 @@ Reload an existing **normal Pi session** with `/reload`, or restart Pi. Then ent
 
 `/skill:fry-me` is the canonical skill command; `/fry-me` is a convenient alias. Both accept your topic. The skill is also discoverable by agents. It uses your current model, without changing provider or defaults. A real interview uses model inference before and after questions; waiting on an open questionnaire does not itself generate tokens. Background extensions or separate agents can still have their own activity.
 
-### Already using the original prototype?
+### Already using a local checkout or the original prototype?
 
-Avoid loading two copies of the extension or skill. If you have old `questionnaire`/`fry-me` symlinks from the prototype, inspect their targets first. Remove **only those old prototype links**, then install this package and reload. Keep unrelated files and configurations. Installing on a new machine needs none of that cleanup.
+Avoid loading two copies of the extension or skill. If you have local `questionnaire`/`fry-me` directory symlinks, inspect their targets first. Remove **only those verified local-install links**, then install this managed Git package and reload. Keep unrelated files and configurations. Installing on a new machine needs none of that cleanup.
 
 ## Answering questions
 
 - Click choices in **fullscreen** Pi. Some questions allow several selections.
 - Selected lines use your theme's accent color and return to neutral when deselected. No hardcoded cyan: your theme decides the color.
 - **Other / extra** adds detail alongside choices. It turns accent-colored as you type, with a wrapped live preview. The native typing field remains single-line; Enter saves and Escape discards edits.
-- **Submit round** sends all answers. Typing exactly `OK` in the main prompt also submits. Clicking Submit while editing saves the current detail first. Save detail with Enter before submitting from the main prompt.
+- **Round thoughts** is a separate optional section after the questions. Its notes apply to the whole round and travel with the answers as `roundNotes`. It uses the same accent-colored, wrapped live preview and save/discard behavior as Other / extra.
+- **Submit round** sends all answers and round thoughts together. Typing exactly `OK` in the main prompt also submits, saving an open transcript draft first. A non-clickable dashed line separates Submit from Cancel.
+- **Cancel round** accepts no answers or notes. The returned `agentInstruction` explicitly tells the agent that every question in the round remains open and unanswered; selections, recommendations and defaults are not agreement.
 - Recommendations are visibly selected. Clearing all choices uses that question's explicit recommendation on submission; cancellation never counts as agreement.
 - `/answers` opens a keyboard sheet: arrows or Tab move, Space/Enter activates, Escape returns to the prompt without cancelling the round.
 - Submitted cards are read-only. Saved answers follow the current session branch. Unfinished rounds are inactive after restart; they do not resume.
@@ -85,4 +87,8 @@ npm run test-provider:large    # 18 questions for scrolling/resize checks
 
 The test provider is synthetic, in-process, and loaded only explicitly by those development commands. It makes no HTTP/model requests and is absent from the Pi resource manifest and runtime package files. Ordinary prompts in a real-model demo session do use the selected model. Do not globally register the test provider.
 
-Tests cover state/defaults, live colors, additive drafts/wrapping, keyboard/mouse/focus behavior, cancellation/history, alias/skill loading, and fake-provider round trips. Mock tests complement rather than replace native terminal testing.
+Tests cover state/defaults, live colors, additive drafts/wrapping, round thoughts, keyboard/mouse/focus behavior, cancellation/history, alias/skill loading, and fake-provider round trips. Mock tests complement rather than replace native terminal testing.
+
+### Showing screenshot receipts
+
+Pi can show an image-capable `read` tool's PNG results inline in supported terminals (Kitty here); this predates Pi 1.5. To request more visual proof, tell agents: “After meaningful UI changes, capture one or two relevant screenshots and show them with the image-capable read tool, not just file paths.” Terminal image detection must be enabled/supported (`terminal.images` normally stays `"auto"`). This is native Pi functionality, not a feature added by this extension. Reading images also sends them to the model, so keep receipts selective.

@@ -26,9 +26,9 @@ function harness(mode = "tui") {
     registerTool: (definition: any) => { tool = definition; }, sendMessage: (message: any) => messages.push(message),
   } as unknown as ExtensionAPI);
   const execute = (id = "tool-1", signal?: AbortSignal, onUpdate?: (result: any) => void) =>
-    tool.execute(id, structuredClone(demoQuestionnaire), signal, onUpdate, ctx) as Promise<{ details: Snapshot }>;
+    tool.execute(id, structuredClone(demoQuestionnaire), signal, onUpdate, ctx) as Promise<{ details: Snapshot; content: { type: string; text: string }[] }>;
   const emit = (name: string, event: any = {}) => events.get(name)!(event, ctx);
-  return { ctx, theme, tool, execute, emit, messages, entries, widgets, notifications,
+  return { ctx, theme, tui, tool, execute, emit, messages, entries, widgets, notifications,
     setBranch: (value: any[]) => { branch = value; },
     get displayEntries() { return entries.filter(entry => entry.customType === "questionnaire-prototype:card"); },
     get results() { return entries.filter(entry => entry.customType === "questionnaire-prototype:result"); },
@@ -54,6 +54,32 @@ test("questionnaire exact interactive OK submits while other input/images/source
   assert.deepEqual(result.details.answers[0].selected, ["small"]);
   assert.equal(h.widgets.at(-1)[1], undefined);
   assert.equal(h.emit("input", { source: "interactive", text: "OK" }).action, "continue");
+});
+test("main editor OK commits an open transcript draft into the same tool result", async () => {
+  for (const notes of [true, false]) {
+    const h = harness(); let focused: any = null;
+    Object.assign(h.tui, { getFocusedComponent: () => focused, setFocus: (component: any) => { focused = component; } });
+    const pending = h.execute("draft-ok");
+    const card = h.renderer(h.displayEntries[0], {}, h.theme) as QuestionnaireCard;
+    click(card, notes ? "[Add general thoughts]" : "Other / extra"); card.handleInput("Unsubmitted draft 日本語");
+    assert.equal(h.displayEntries[0].data.roundNotes, "");
+    assert.equal(h.emit("input", { source: "interactive", text: "OK" }).action, "handled");
+    const result = await pending;
+    assert.equal(notes ? result.details.roundNotes : result.details.answers[0].extra, "Unsubmitted draft 日本語");
+    assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(result.details)));
+    assert.equal(h.results[0].data, result.details);
+  }
+});
+test("Cancel tool content explicitly leaves every question open, with no accepted notes or answers", async () => {
+  const h = harness(); const pending = h.execute("cancel-notes");
+  const card = h.renderer(h.displayEntries[0], {}, h.theme) as QuestionnaireCard;
+  click(card, "[Add general thoughts]"); await Promise.resolve();
+  click(card, "Full implementation"); click(card, "Cancel round");
+  const result = JSON.parse((await pending).content[0].text);
+  assert.equal(result.status, "cancelled"); assert.equal(result.roundNotes, "");
+  assert.deepEqual(result.answers, []);
+  assert.match(result.agentInstruction, /Every question.*open and unanswered/);
+  assert.match(result.agentInstruction, /Do not treat.*recommendations.*defaults.*notes/);
 });
 test("questionnaire rejects a concurrent cross-entry request without replacing the active one", async () => {
   const h = harness(); const first = h.execute("first");
@@ -173,8 +199,10 @@ test("branch replay restores frozen submitted/cancelled answers, excludes abando
   for (const cancelled of [false, true]) {
     const original = harness(); const pending = original.execute("replay");
     const card = original.renderer(original.displayEntries[0], {}, original.theme);
+    click(card, "[Add general thoughts]"); await Promise.resolve();
     click(card, "Full implementation"); click(card, cancelled ? "Cancel round" : "Submit round");
     const final = (await pending).details;
+    assert.equal(final.roundNotes, cancelled ? "" : "fallback detail");
     const reloaded = harness();
     const branch = structuredClone(original.entries);
     reloaded.setBranch(branch); reloaded.emit("session_start");
