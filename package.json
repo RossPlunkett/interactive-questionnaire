@@ -1,0 +1,41 @@
+{
+  "name": "fry-me",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive grilling interviews and clickable questionnaire cards for Pi",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": ["./extension/index.ts"],
+    "skills": ["./skills"]
+  },
+  "files": [
+    "extension/index.ts",
+    "extension/state.ts",
+    "skills/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --experimental-transform-types --test extension/tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "demo": "bash extension/launch.sh demo",
+    "test-provider": "bash extension/launch.sh test-provider",
+    "test-provider:large": "bash extension/launch.sh test-provider-large"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.5.0",
+    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-tui": "1.5.0",
+    "@types/node": "^22.0.0",
+    "typebox": "1.3.27",
+    "typescript": "~7.0.2"
+  }
+}
