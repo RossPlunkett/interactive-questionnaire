@@ -118,8 +118,13 @@ test("questionnaire tool renderer stays compact; live entry reuses the same card
   h.emit("input", { source: "interactive", text: "OK" }); await pending;
   assert.equal(h.displayEntries.length, 1); assert.equal(h.results.length, 1);
   assert.ok(card.render(100).some((line: string) => line.includes("submitted")));
-  assert.ok(!card.render(100).some((line: string) => line.includes("Submit round")));
+  assert.ok(card.render(100).some((line: string) => line.includes("[ Submit round ]")));
   assert.equal(entry.data.status, "pending");
+});
+test("the extension briefs the agent through a system prompt section", () => {
+  const h = harness(); const options = { sections: {} as Record<string, string> };
+  h.emit("before_agent_start", { systemPromptOptions: options });
+  assert.match(options.sections["interactive-questionnaire"], /questionnaire` rounds/);
 });
 test("/answers opens the same card, can close without settling, and closes on submission", async () => {
   const h = harness(); await h.command("answers"); assert.equal(h.notifications.length, 1);
@@ -222,7 +227,8 @@ test("branch replay restores frozen submitted/cancelled answers, excludes abando
   }
 });
 function clickInert(card: QuestionnaireCard) {
-  assert.ok(!card.render(100).some(line => line.includes("Submit round")));
+  const submitted = (card.source as Snapshot).status === "submitted";
+  assert.equal(card.render(100).some(line => line.includes("Submit round")), submitted);
   card.handleInput(" ");
   card.handleMouse({ type: "click", button: "left", x: 0, y: 0, screenX: 0, screenY: 0,
     width: 100, height: 30, shift: false, alt: false, ctrl: false });

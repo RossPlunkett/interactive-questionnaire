@@ -1,6 +1,6 @@
-# fry-me
+# interactive-questionnaire
 
-Private Pi package: a grilling interview skill with clickable questions in your conversation.
+Pi package: clickable questionnaire cards in your conversation, plus the `fry-me` grilling interview skill that uses them. The package name is `interactive-questionnaire`; the skill keeps the name `fry-me`.
 
 ```text
 extension/       Pi extension and its tests
@@ -13,15 +13,11 @@ The package is self-contained: no separate `grill-me` or `grilling` installation
 
 Requires Pi 1.4+ and Node 22.19+. The original extension was exercised on Pi 1.4 and 1.5 with the OMP-style Pi presentation plugin; development checks here use Pi 1.5.
 
-Because this repository is private, Git must have permission to read it. For HTTPS with GitHub CLI:
-
 ```sh
-gh auth login
-gh auth setup-git
-pi install git:github.com/RossPlunkett/fry-me
+pi install git:github.com/RossPlunkett/interactive-questionnaire
 ```
 
-An existing Git credential helper or GitHub SSH setup works too; use the matching Git URL with Pi. Pi supplies the runtime peer packages; no machine-local dependency symlinks or compiler paths are needed.
+Pi supplies the runtime peer packages; no machine-local dependency symlinks or compiler paths are needed.
 
 Reload an existing **normal Pi session** with `/reload`, or restart Pi. Then enter:
 
@@ -40,6 +36,8 @@ Avoid loading two copies of the extension or skill. If you have local `questionn
 - Questions use classic **❓ Qn — …** headings, with a red question mark and numeric part, and a white/default letter Q. Existing question numbers are preserved; unnumbered prompts are numbered automatically.
 - Click choices in **fullscreen** Pi. Some questions allow several selections.
 - Selected lines use your theme's accent color and return to neutral when deselected. No hardcoded cyan: your theme decides the color.
+- Hover recolors the control under the pointer with the theme's `borderAccent`, a second accent distinct from `accent`, while the round is open. Fullscreen Pi outside tmux/zellij/screen reports pointer motion; elsewhere the hover color never appears.
+- **Submit round** turns accent-colored once submitted, and the card is then read-only: clicks, keys and `/answers` do nothing to it.
 - **Other / extra** adds detail alongside choices. It turns accent-colored as you type, with a wrapped live preview. The native typing field remains single-line; Enter saves and Escape discards edits.
 - **Round thoughts** is a separate optional section after the questions. Its notes apply to the whole round and travel with the answers as `roundNotes`. It uses the same accent-colored, wrapped live preview and save/discard behavior as Other / extra.
 - **Submit round** sends all answers and round thoughts together. Typing exactly `OK` in the main prompt also submits, saving an open transcript draft first. A non-clickable dashed line separates Submit from Cancel.
@@ -48,6 +46,8 @@ Avoid loading two copies of the extension or skill. If you have local `questionn
 - `/answers` opens a keyboard sheet: arrows or Tab move, Space/Enter activates, Escape returns to the prompt without cancelling the round.
 - Submitted cards are read-only. Saved answers follow the current session branch. Unfinished rounds are inactive after restart; they do not resume.
 - `/questionnaire-demo` opens fixed sample questions without making model requests.
+
+While the extension is active, every session gets a one-line brief in its system prompt: grilling or interview requests run as `questionnaire` rounds, not prose questions. It costs a few tokens per turn.
 
 The extension exposes the agent-callable `questionnaire` tool. Its schema supports titles, question/option IDs, single/multiple selection, and explicit recommended option IDs. Additive detail is always available, regardless of the legacy `allowExtra` field.
 
@@ -62,17 +62,17 @@ Keep distinct interviews separate, oldest first. Normal questionnaire tool calls
 ## Update / uninstall
 
 ```sh
-pi update git:github.com/RossPlunkett/fry-me
-pi remove git:github.com/RossPlunkett/fry-me
+pi update git:github.com/RossPlunkett/interactive-questionnaire
+pi remove git:github.com/RossPlunkett/interactive-questionnaire
 ```
 
-Reload or restart Pi afterwards. Installing a tag/commit pins that revision; an unpinned source follows the repository branch on update. This private repository is not published to npm.
+Reload or restart Pi afterwards. Installing a tag/commit pins that revision; an unpinned source follows the repository branch on update. This repository is not published to npm (`"private": true` in `package.json`).
 
 ## Development
 
 ```sh
-git clone https://github.com/RossPlunkett/fry-me.git
-cd fry-me
+git clone https://github.com/RossPlunkett/interactive-questionnaire.git
+cd interactive-questionnaire
 npm ci --ignore-scripts
 npm test
 npm run typecheck

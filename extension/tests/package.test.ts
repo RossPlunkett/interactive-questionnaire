@@ -14,7 +14,9 @@ test("package exposes only the extension and self-contained skill, with portable
   assert.deepEqual(manifest.pi, { extensions: ["./extension/index.ts"], skills: ["./skills"] });
   assert.deepEqual(readdirSync(root, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
-    .map(entry => entry.name).sort(), ["extension", "skills"]);
+    .map(entry => entry.name).sort(), ["cli-skills", "extension", "skills"]);
+  // cli-skills is the development skill for this repo; it must never ship.
+  assert.ok(!manifest.files.some((file: string) => file.startsWith("cli-skills")));
   for (const name of ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui", "typebox"]) {
     assert.equal(manifest.peerDependencies[name], "*");
     assert.equal(manifest.dependencies?.[name], undefined);

@@ -30,6 +30,7 @@ export class QuestionnaireCard implements Component {
   private previousFocus: Component | null = null;
   private ownsFocus = false;
   private _focused = false;
+  private hovered?: number;
   private inputRow = -1;
   private disposed = false;
   private unsubscribe?: () => void;
@@ -128,7 +129,14 @@ export class QuestionnaireCard implements Component {
     this.options.refresh();
   }
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    if (!this.live || event.button !== "left") return;
+    if (!this.live) return;
+    if (event.type === "move") {
+      const hovered = this.editing && event.y === this.inputRow ? undefined : this.rows.get(event.y);
+      if (hovered === this.hovered) return;
+      this.hovered = hovered;
+      return { handled: true, render: true };
+    }
+    if (event.button !== "left") return;
     if (this.editing && event.y === this.inputRow) {
       if (event.type === "press") {
         const result = this.input.handleMouse({ ...event, y: 0 });
@@ -154,7 +162,10 @@ export class QuestionnaireCard implements Component {
     const control = (text: string, action: Action, highlighted = false) => {
       const index = this.actions.push(action) - 1;
       const start = lines.length;
-      add(this.theme.fg(highlighted ? "accent" : "text", `${this.options.keyboard && this.cursor === index ? "> " : "  "}${text}`));
+      const label = `${this.options.keyboard && this.cursor === index ? "> " : "  "}${text}`;
+      // Hover uses the theme's second accent (borderAccent) so it stays distinct from the selected accent.
+      const color = live && this.hovered === index ? "borderAccent" : highlighted ? "accent" : "text";
+      add(this.theme.fg(color, label));
       if (live) for (let row = start; row < lines.length; row++) this.rows.set(row, index);
     };
     const renderEditor = () => {
@@ -191,6 +202,7 @@ export class QuestionnaireCard implements Component {
       control("[ Cancel round ]", { kind: "cancel" });
       add(this.theme.fg("dim", this.options.keyboard ? "↑/↓ or Tab: move · Space/Enter: activate · Escape: return to editor" : "Click controls in fullscreen · /answers for keyboard · explicit OK submits"));
     } else {
+      if (snapshot.status === "submitted") add(this.theme.fg("accent", "[ Submit round ]"));
       if (snapshot.reason) add(this.theme.fg("muted", snapshot.reason));
       if (snapshot.status === "cancelled") add(this.theme.fg("warning", "Cancelled — every question remains open and unanswered."));
     }
@@ -206,7 +218,8 @@ export class QuestionnaireCard implements Component {
   }
 }
 
-const widgetKey = "questionnaire-prototype:guidance";
+const questionnaireBrief = "The interactive-questionnaire extension is active. When the user asks to be grilled, fried, interviewed or stress-tested on a plan or decision, run the interview as `questionnaire` rounds with clickable cards, not as prose questions.";
+const widgetKey = "interactive-questionnaire:guidance";
 const cardEntryType = "questionnaire-prototype:card";
 const resultEntryType = "questionnaire-prototype:result";
 export default function questionnaireExtension(pi: ExtensionAPI): void {
@@ -302,6 +315,9 @@ export default function questionnaireExtension(pi: ExtensionAPI): void {
     clearCards();
     tui = undefined;
     finalResults.clear();
+  });
+  pi.on("before_agent_start", event => {
+    event.systemPromptOptions.sections["interactive-questionnaire"] = questionnaireBrief;
   });
   pi.on("input", event => {
     if (active && event.source === "interactive" && !event.images?.length && /^ok$/i.test(event.text.trim())) {

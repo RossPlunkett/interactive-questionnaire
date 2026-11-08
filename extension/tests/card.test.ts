@@ -199,8 +199,32 @@ test("QuestionnaireCard pending history snapshots and completed cards are inert"
     const before = JSON.stringify(snapshot);
     assert.equal(click(card, "Full implementation"), undefined);
     card.handleInput(" "); assert.equal(JSON.stringify(snapshot), before);
-    assert.ok(!card.render(80).some(line => line.includes("Submit round")));
+    assert.equal(card.render(80).some(line => line.includes("Submit round")), snapshot.status === "submitted");
   }
+});
+test("QuestionnaireCard hover recolors the live control under the pointer to borderAccent, then goes quiet after submit", () => {
+  const tagged = { fg: (color: string, text: string) => `<${color}>${text}</>` } as unknown as Theme;
+  const state = fresh(); let renders = 0;
+  const card = new QuestionnaireCard(state, tagged, { refresh: () => renders++ });
+  const move = (y: number) => card.handleMouse({ type: "move", button: "none", x: 3, y, screenX: 3, screenY: y,
+    width: 100, height: 30, shift: false, alt: false, ctrl: false } satisfies TuiMouseEvent);
+  const row = (text: string) => card.render(100).findIndex(line => line.includes(text));
+  const full = row("Full implementation");
+  assert.equal(move(full)?.render, true); assert.match(card.render(100)[full], /^<borderAccent>/);
+  assert.equal(move(full), undefined);
+  assert.equal(move(row("Small native prototype"))?.render, true);
+  assert.doesNotMatch(card.render(100)[full], /borderAccent/);
+  move(full); click(card, "Submit round"); const before = renders;
+  assert.equal(move(full), undefined); assert.equal(renders, before);
+  assert.ok(!card.render(100).some(line => line.includes("borderAccent")));
+});
+test("QuestionnaireCard submitted round turns its Submit line accent and leaves it inert", () => {
+  const tagged = { fg: (color: string, text: string) => `<${color}>${text}</>` } as unknown as Theme;
+  const state = fresh(); const card = new QuestionnaireCard(state, tagged, { refresh() {} });
+  click(card, "Submit round");
+  assert.ok(card.render(100).includes("<accent>[ Submit round ]</>"));
+  assert.ok(!card.render(100).some(line => line.includes("Cancel round")));
+  assert.equal(click(card, "Submit round"), undefined); assert.equal(state.status, "submitted");
 });
 test("QuestionnaireCard line widths are safe across resize, Unicode, themes and inline Input", () => {
   const input = structuredClone(demoQuestionnaire);
